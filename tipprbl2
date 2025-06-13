@@ -1,0 +1,917 @@
+section .data
+    danger db "FrggrLrSmAugNvrvrG", 10, 0
+    format_char db "%c", 0
+
+section .text
+extern printf
+a) [5p] Prima slăbiciune a dragonului sunt literele cărora, dacă le luăm codul ASCII și îl împărțim la 5, obținem
+un rest mai mic sau egal cu 1. Le vom numi litere periculoase. Pentru a le identifica, parcurgeți șirul danger,
+salvat în secțiunea .data, și afișați literele periculoase.
+
+global main
+
+main:
+    push ebp
+    mov ebp, esp
+
+    ; ESI va fi folosit ca index în șir
+    mov esi, 0              ; index = 0
+
+.loop_danger:
+    movzx eax, byte [danger + esi]   ; citește un caracter în EAX
+    cmp eax, 0                      ; dacă e NULL, termină
+    je .end_danger
+
+    cmp eax, 10                     ; ignoră newline '\n'
+    je .next_char
+
+    mov ebx, eax                    ; copiem caracterul în EBX pentru păstrare
+
+    xor edx, edx                    ; EDX trebuie golit înainte de div
+    mov ecx, 5
+    div ecx                         ; EAX / 5 -> EAX = cât, EDX = rest
+
+    cmp edx, 1                      ; verificăm dacă restul <= 1
+    ja .next_char                   ; dacă e >1, nu e periculos
+
+    ; EDI = caracter periculos -> afișăm
+    push ebx                        ; EBX conține caracterul original
+    push format_char
+    call printf
+    add esp, 8                      ; curățăm stiva (2x push = 8 bytes)
+
+.next_char:
+    inc esi
+    jmp .loop_danger
+
+.end_danger:
+
+
+b) [5p] Pentru a putea descoperi și celelalte slăbiciuni ale dragonului, va trebui să setați valoarea de retur a executabilului la 55. Puteți verifica această valoare folosind comanda echo $? după rularea executabilului.
+   ; TODO b: Modify return value to 55
+    mov eax, 55
+    leave
+    ret
+Valoarea de retur a unui program este dată de registrul EAX la finalul funcției main. Deci, trebuie doar să ne asigurăm
+
+c) [5p] A doua slăbiciune a dragonului sunt numerele grele — acelea care au bitul cel mai semnificativ (MSB)
+setat și pentru care numărul format prin concatenarea celui de al treilea și al patrulea octet este strict mai mare
+decât 255 (țineți cont că avem sistemul în format little endian). Pentru testare, folosiți variabila heavy_number
+salvată în secțiunea .data. Dacă aceasta este grea, afișați mesajul “The number is heavy”, altfel, “The number
+is not heavy”. (Hint: Comparația cu 255 se face pe tipul de date dword cu restul de 2 bytes zeroizați.)
+
+section .data
+    heavy_number dd -16772556
+    format_heavy db "The number is heavy", 10, 0
+    format_not_heavy db "The number is not heavy", 10, 0
+
+section .text
+extern printf
+global main
+
+main:
+    push ebp
+    mov ebp, esp
+
+    ; Load the number in EAX
+    mov eax, [heavy_number]
+
+    ; === Check MSB ===
+    test eax, 0x80000000         ; testăm dacă MSB este 1
+    jz .not_heavy                ; dacă nu e, atunci nu e "greu"
+
+    ; === Formăm numărul concatenat din byte 3 și 4 ===
+    ; în little endian, aceștia sunt byte [eax+2] și [eax+3]
+    ; EAX deja conține numărul => lucrăm direct pe el
+
+    mov ebx, eax                 ; copiem în EBX
+    shr ebx, 16                  ; aducem octetul 3 în AL și octetul 4 în AH
+                                 ; EBX[15:8] = al patrulea byte
+                                 ; EBX[7:0] = al treilea byte
+
+    ; Acum EBX[15:0] este exact numărul concatenat
+
+    cmp bx, 255                 ; comparăm cu 255
+    jbe .not_heavy              ; dacă <= 255, nu e greu
+
+.is_heavy:
+    push format_heavy
+    call printf
+    add esp, 4
+    jmp .done
+
+.not_heavy:
+    push format_not_heavy
+    call printf
+    add esp, 4
+
+.done:
+
+
+d) [5p] Pentru a câștiga bătălia cu dragonul, va trebui să parcurgeți vectorul battle, salvat în secțiunea .data, și
+să afișați numerele grele în format hexazecimal.
+
+section .data
+    battle dd -16707020, 447812148, -1968106956, 1609673524, -1
+           dd 305402420, -1484674544, -1576992769, -858993460, 178956970
+    len_battle equ 10
+
+    format_hex db "%08X", 10, 0     ; hex + newline
+
+section .text
+extern printf
+global main
+
+main:
+    push ebp
+    mov ebp, esp
+
+    ; === Loop setup ===
+    mov esi, 0                      ; index = 0
+
+.loop_battle:
+    cmp esi, len_battle
+    jge .end_battle                 ; termină când index >= 10
+
+    mov eax, [battle + esi*4]      ; încarcă numărul în EAX
+
+    ; === Check MSB ===
+    test eax, 0x80000000
+    jz .next_num                    ; dacă MSB = 0, nu e greu
+
+    ; === Verificare byte3 și byte4 > 255 ===
+    mov ebx, eax
+    shr ebx, 16                    ; EBX[15:0] = byte4:byte3
+
+    cmp bx, 255
+    jbe .next_num                  ; dacă <= 255, nu e greu
+
+    ; === E greu ⇒ afișăm în hex ===
+    push eax                       ; numărul în format hexa
+    push format_hex
+    call printf
+    add esp, 8                     ; curățăm stiva
+
+.next_num:
+    inc esi
+    jmp .loop_battle
+
+.end_battle:
+
+
+; TODO a: Implement `void insert_in_map(char *map, int *size, char *str)`
+; which inserts letters and their occurrences found in the string `str` into `map`.
+
+extern printf
+
+section .data
+    format_result db "%c appears %d times", 10, 0
+
+section .text
+insert_in_map:
+    push ebp
+    mov ebp, esp
+
+    ; arg1: [ebp+8]  → map
+    ; arg2: [ebp+12] → size (int*) - nu e necesar aici
+    ; arg3: [ebp+16] → sir (char*)
+
+    mov esi, [ebp + 16]    ; ESI = sir
+    mov edi, [ebp + 8]     ; EDI = map
+
+.loop:
+    movzx eax, byte [esi]  ; caracter curent
+    cmp eax, 0
+    je .done
+
+    cmp eax, 'a'
+    jl .next
+    cmp eax, 'z'
+    jg .next
+
+    sub eax, 'a'           ; index între 0 și 25
+    inc byte [edi + eax]   ; map[index]++
+
+.next:
+    inc esi
+    jmp .loop
+
+.done:
+    xor ecx, ecx           ; ECX = index curent în map
+    xor edx, edx           ; EDX = max count
+    xor ebx, ebx           ; EBX = index literă max
+
+.find_max:
+    cmp ecx, 26
+    jge .print_result
+
+    movzx eax, byte [edi + ecx]
+    cmp eax, edx
+    jle .next_check
+
+    mov edx, eax           ; salvăm noul max
+    mov ebx, ecx           ; și litera (ca index)
+
+.next_check:
+    inc ecx
+    jmp .find_max
+
+.print_result:
+    add ebx, 'a'           ; transformăm index în caracter
+    push edx               ; count
+    push ebx               ; litera
+    push format_result
+    call printf
+    add esp, 12
+
+    leave
+    ret
+
+
+b) [5p] Implementați funcția void print_map(char *map, int *size), care afișează, pentru fiecare cheie introdusă în map (de dimensiune maxima size) numărul său de apariții doar dacă acesta este diferit de zero.
+Formatul este <Litera>: <nr_apariții>\n. Alocați șirul “it’s not that hard.” pe stivă, apoi apelați funcția
+insert_in_map pentru acest șir. Pentru testare, apelați funcția print_map.
+
+extern printf
+
+section .data
+    format_map db "%c: %d", 10, 0
+
+section .text
+print_map:
+    push ebp
+    mov ebp, esp
+
+    ; [ebp+8]  = map
+    ; [ebp+12] = size (int*)
+
+    mov edi, [ebp + 8]     ; edi = map
+    mov esi, 0             ; index curent
+
+.loop_print:
+    cmp esi, 26            ; doar 'a' până la 'z'
+    jge .done
+
+    movzx eax, byte [edi + esi]
+    cmp eax, 0
+    je .next
+
+    ; avem valoare nenulă → afișăm
+    mov ebx, esi
+    add ebx, 'a'           ; caracterul literei
+
+    push eax               ; valoarea (count)
+    push ebx               ; litera
+    push format_map
+    call printf
+    add esp, 12
+
+.next:
+    inc esi
+    jmp .loop_print
+
+.done:
+    leave
+    ret
+
+
+c) [5p] Implementați funcția void card_map(char *map, int *size) care afișează cardinalul mulțimii reținute
+în map-ul map de dimensiune maximă size octeți. Prin cardinalul mulțimii ne referim la numărul de litere unice
+introduse în map (NU suma valorilor fiecărei chei). Pentru testare, folosiți map-ul populat la punctele anterioare.
+
+extern printf
+
+section .data
+    format_card db "Cardinal: %d", 10, 0
+
+section .text
+card_map:
+    push ebp
+    mov ebp, esp
+
+    ; [ebp+8] = map
+    ; [ebp+12] = size (pointer to int) — size = 27
+
+    mov edi, [ebp + 8]     ; edi = map
+    xor ecx, ecx           ; ecx = index
+    xor eax, eax           ; eax = count (cardinal)
+
+.loop:
+    cmp ecx, 26            ; doar literele 'a'-'z'
+    jge .done
+
+    cmp byte [edi + ecx], 0
+    je .next
+
+    inc eax                ; dacă map[i] != 0 → incrementăm cardinalul
+
+.next:
+    inc ecx
+    jmp .loop
+
+.done:
+    push eax
+    push format_card
+    call printf
+    add esp, 8
+
+    leave
+    ret
+
+
+d) [5p] Implementați funcția void expand_map(char *map, int *size), care parcurge întregul map(fiecare literă
+din alfabet), de dimensiune maximă size, și pentru fiecare cheie actualizează valoarea asociată folosind formula:
+((2 * value + 1) << 7) % 5. Apelați apoi funcția print_map.
+
+extern print_map
+
+section .text
+expand_map:
+    push ebp
+    mov ebp, esp
+
+    ; [ebp+8]  = map
+    ; [ebp+12] = size
+
+    mov edi, [ebp + 8]     ; edi = map
+    xor ecx, ecx           ; index = 0
+
+.loop:
+    cmp ecx, 26
+    jge .call_print_map
+
+    ; preluăm valoarea map[ecx]
+    movzx eax, byte [edi + ecx]
+
+    ; dacă e 0, trecem peste (dar și 0 poate fi procesat - deci opțional)
+    ; aici procesăm tot, inclusiv 0
+    ; eax = ((2 * eax + 1) << 7) % 5
+
+    shl eax, 1             ; eax = 2 * value
+    add eax, 1             ; eax = 2 * value + 1
+    shl eax, 7             ; eax <<= 7
+    mov edx, 0
+    mov ebx, 5
+    div ebx                ; eax / 5 → eax = cât, edx = rest
+    mov eax, edx           ; eax = valoarea finală
+
+    ; salvăm rezultatul în map
+    mov [edi + ecx], al
+
+    inc ecx
+    jmp .loop
+
+.call_print_map:
+    push dword [ebp + 12]  ; size
+    push dword [ebp + 8]   ; map
+    call print_map
+    add esp, 8
+
+    leave
+    ret
+
+
+
+
+
+
+Studenții pasionați de IOCLA sunt pasionați și de numerologie. Demonstrați-vă apartenența la această categorie.
+a) [5p] Numim un număr perfect, dacă cei 2 biți centrali ai săi sunt egali. Verificați dacă un număr pe 8 biți este
+perfect. Pentru testare, folosiți variabila perfect salvată în secțiunea .data. Dacă aceasta este perfectă, afișați
+mesajul “The number is perfect”, altfel, “The number is not perfect”.
+
+
+%include "printf32.asm"
+
+section .data
+    perfect db 0b00011001
+    pure db 1, 0b00011001, 0b00011110, 0, 4, 5
+    address db 1
+    duplicates dd 1, 2, 3, 1, 4, 3, 16, 4, 2
+
+    fmtPerfect db "The number %d is perfect", 10, 0
+    fmtNotPerfect db "The number %d is not perfect", 10, 0
+
+section .bss
+    tmp0 resd 1
+    tmp1 resd 1
+
+section .text
+extern printf
+global main
+
+preamble:
+    enter 0, 0
+
+    lea eax, [tmp1]
+    mov [tmp0], eax
+    lea eax, [tmp0]
+    mov [address], eax
+
+    leave
+    ret
+
+main:
+    push ebp
+    mov ebp, esp
+
+    call preamble
+
+    ; Load value of 'perfect'
+    movzx eax, byte [perfect]
+
+    ; Copy to another register to not lose value
+    mov ebx, eax
+
+    ; Extract bit 3: (perfect >> 3) & 1
+    shr eax, 3
+    and eax, 1
+    mov edx, eax ; bit 3
+
+    ; Extract bit 4: (perfect >> 4) & 1
+    mov eax, ebx
+    shr eax, 4
+    and eax, 1
+    mov ecx, eax ; bit 4
+
+    ; Compare bits
+    cmp edx, ecx
+    jne .not_perfect
+
+    ; If equal, it's perfect
+    movzx eax, byte [perfect]
+    push eax
+    push fmtPerfect
+    call printf
+    add esp, 8
+    jmp .done
+
+.not_perfect:
+    movzx eax, byte [perfect]
+    push eax
+    push fmtNotPerfect
+    call printf
+    add esp, 8
+
+.done:
+    mov esp, ebp
+    pop ebp
+    ret
+
+b) [5p] Numim un șir de numere pur, dacă toate elementele sale de pe poziții puteri ale lui 2 sunt perfecte. Verificați
+dacă un șir este pur, folosind pentru testare vectorul pure salvat în secțiunea .data. Dacă acesta este pur, afișați
+mesajul “The array is pure”, altfel, “The array is not pure”.
+
+
+%include "printf32.asm"
+
+section .data
+    pure db 1, 0b00011001, 0b00011110, 0, 4, 5
+    pure_len equ 6
+
+    fmtPure db "The array is pure", 10, 0
+    fmtNotPure db "The array is not pure", 10, 0
+
+section .bss
+
+section .text
+extern printf
+global main
+
+; subrutina care verifică dacă un număr este perfect după definiția bitilor centrali
+; Intrare: AL = numărul pe 8 biți
+; Ieșire: ZF=1 dacă perfect, 0 altfel
+is_perfect:
+    push eax
+    movzx eax, al
+    mov edx, eax
+    shr eax, 3
+    and eax, 1         ; bit3
+    shr edx, 4
+    and edx, 1         ; bit4
+    cmp eax, edx
+    sete al            ; al=1 dacă perfect
+    test al, al
+    pop eax
+    ret
+
+main:
+    push ebp
+    mov ebp, esp
+
+    mov ecx, pure_len
+    mov esi, pure          ; pointer la începutul array-ului
+    mov ebx, 1             ; index 1-based
+
+.loop:
+    cmp ebx, ecx
+    jg .all_checked       ; dacă am trecut de final
+
+    ; verific dacă indexul e putere a lui 2
+    mov eax, ebx
+    test eax, eax
+    jz .next              ; index 0 nu contează
+    mov edx, eax
+
+    ; verificare putere de 2: eax & (eax-1) == 0
+    dec eax
+    and eax, edx
+    cmp eax, 0
+    jne .next             ; dacă nu e putere de 2, skip
+
+    ; index e putere de 2, verific numărul dacă e perfect
+    mov al, [esi + ebx - 1]
+    call is_perfect
+    test al, al
+    jz .not_pure          ; dacă nu e perfect, ieșim
+
+.next:
+    inc ebx
+    jmp .loop
+
+.all_checked:
+    ; dacă am ajuns aici, array-ul e pur
+    push fmtPure
+    call PRINTF32
+    add esp, 4
+    jmp .end
+
+.not_pure:
+    push fmtNotPure
+    call PRINTF32
+    add esp, 4
+
+.end:
+    mov esp, ebp
+    pop ebp
+    ret
+
+
+c) [5p] Numim o adresă magică, dacă deferențiindu-o de 3 ori obținem valoarea 0. Verificați dacă o adresă este
+magică, folosind pentru testare variabila address salvată în secțiunea .data. Dacă aceasta este magică, afișați
+mesajul “The address is magic”, altfel, “The address is not magic”
+%include "printf32.asm"
+
+section .data
+    fmtMagic db "The address is magic", 10, 0
+    fmtNotMagic db "The address is not magic", 10, 0
+
+section .bss
+    tmp0 resd 1
+    tmp1 resd 1       ; va conține 0 implicit (secțiunea .bss)
+    
+section .text
+extern printf
+global main
+
+preamble:
+    enter 0, 0
+
+    ; tmp1 are deja 0 (bss)
+    lea eax, [tmp1]
+    mov [tmp0], eax       ; tmp0 -> tmp1
+    lea eax, [tmp0]
+    mov [address], eax    ; address -> tmp0
+
+    leave
+    ret
+
+main:
+    push ebp
+    mov ebp, esp
+
+    call preamble
+
+    ; prima dereferențiere
+    mov eax, [address]
+    ; a doua
+    mov eax, [eax]
+    ; a treia
+    mov eax, [eax]
+
+    cmp eax, 0
+    jne .not_magic
+
+    push fmtMagic
+    call PRINTF32
+    add esp, 4
+    jmp .done
+
+.not_magic:
+    push fmtNotMagic
+    call PRINTF32
+    add esp, 4
+
+.done:
+    mov esp, ebp
+    pop ebp
+    ret
+
+
+d) [5p] Pentru un vector de întregi ce conține duplicate și o singură valoare unică, determinați, folosind o singură
+buclă, elementul neduplicat. Folosiți pentru testare vectorul duplicates salvat în secțiunea .data și afișați
+valoarea fără duplicate din acesta
+
+%include "printf32.asm"
+
+section .data
+    duplicates dd 1, 2, 3, 1, 4, 3, 16, 4, 2
+    duplicates_len equ 9
+
+    fmtUnique db "Unique value: %d", 10, 0
+
+section .text
+extern printf
+global main
+
+main:
+    push ebp
+    mov ebp, esp
+
+    xor eax, eax            ; rezultat XOR
+    mov esi, duplicates     ; adresa vectorului
+    mov ecx, duplicates_len ; număr de elemente
+    xor edi, edi            ; index (în bytes va fi edi*4)
+
+.loop:
+    xor eax, [esi + edi*4]  ; eax ^= element curent
+    inc edi
+    loop .loop
+
+    ; Afișare rezultat
+    push eax
+    push fmtUnique
+    call PRINTF32
+    add esp, 8
+
+    mov esp, ebp
+    pop ebp
+    ret
+(facem xor pe toate elem  si  la final trb  sa avem elementul unic  (a xor a  = 0  a  xor 0  = a  a xor b xor a = b))
+
+
+
+O variantă eficientă și performantă de a reține mulțimile de numere naturale este folosirea bitseturilor.
+Un bitset este un vector de octeți care funcționează similar cu un vector frecvență, însă reține apartenența unui element
+la mulțime prin setarea bitului corespunzător. Spre exemplu, pentru a marca faptul că valoarea 56 aparține unei
+mulțimi, trebuie setat cel de-al 56-lea bit din vectorul bitsetului.
+Bitsetul este declarat în secțiunea .bss cu numele bitset și are dimensiunea maximă de 1000 de octeți.
+a) [5p] Implementați funcția void insert_in_set(char *bitset, int n, int x) care introduce elementul x în
+mulțimea reținută în bitsetul bitset de dimensiune n octeți. Pentru testare, introduceți valoarea 56 în bitsetul
+gol și afișați valoarea octetului în care aceasta a fost salvată.
+insert_in_set:
+    push ebp
+    mov ebp, esp
+
+    ; x -> eax
+    mov eax, [ebp + 16]
+
+    ; ecx = x / 8 (byte index)
+    mov ecx, eax
+    shr ecx, 3          ; ecx = x / 8
+
+    ; edx = x % 8 (bit index)
+    and eax, 7          ; eax = x % 8
+
+    ; ebx = 1 << eax (mask)
+    mov bl, 1
+    shl bl, al          ; al = bit index, bl = mask
+
+    ; edi = adresa bitset
+    mov edi, [ebp + 8]
+
+    ; accesează byte-ul
+    or [edi + ecx], bl  ; bitset[byte_index] |= mask
+
+    mov esp, ebp
+    pop ebp
+    ret
+
+TESTARE
+ push dword 56              ; valoarea pe care o inserăm
+    push dword [bitset_size]   ; dimensiunea bitsetului
+    push dword bitset          ; adresa bitsetului
+    call insert_in_set
+    add esp, 12                ; curățăm argumentele de pe stivă
+
+    ; --- Afișăm byte-ul în care s-a făcut inserarea ---
+    ; x = 56 -> x / 8 = 7 => bitset[7]
+    movzx eax, byte [bitset + 7]
+    push eax
+    push fmtByte
+    call PRINTF32
+    add esp, 8
+
+
+b) [5p] Implementați funcția void read_set(char *bitset, int n, int m) care citește m elemente de la tastatură și le introduce în mulțimea reținută în bitsetul bitset de dimensiune n octeți. Pentru testare, citiți de
+la tastatură valorile 160 și 161 și afișați valoarea octetului din bitset în care acestea au fost salvate.
+
+extern scanf
+extern printf
+
+section .data
+    format_in  db "%d", 0
+    test_fmt   db "bitset[20] = %d", 10, 0
+
+section .text
+global read_set
+
+read_set:
+    push ebp
+    mov ebp, esp
+
+    ; save parameters:
+    ; [ebp+8] = set
+    ; [ebp+12] = n
+    ; [ebp+16] = m
+
+    mov esi, [ebp+8]      ; esi = set
+    mov ecx, [ebp+16]     ; ecx = m (number of values)
+
+.loop_read:
+    cmp ecx, 0
+    je .done
+
+    ; read value into local variable
+    sub esp, 4            ; allocate 4 bytes for int val
+    lea eax, [esp]        ; eax = &val
+    push eax
+    push format_in
+    call scanf
+    add esp, 8            ; clean stack
+
+    mov eax, [esp]        ; eax = val
+    cmp eax, 0
+    jl .skip              ; skip if val < 0
+
+    mov ebx, [ebp+12]     ; ebx = n (number of bytes)
+    shl ebx, 3            ; ebx = n * 8 (number of bits)
+    cmp eax, ebx
+    jge .skip             ; skip if val >= n*8
+
+    ; byte_index = val / 8
+    mov ebx, eax
+    shr ebx, 3            ; ebx = byte index = val / 8
+
+    ; bit_index = val % 8
+    mov edx, eax
+    and edx, 7            ; edx = val % 8 = bit index
+
+    ; set[byte_index] |= (1 << bit_index)
+    mov al, byte [esi + ebx]
+    mov cl, dl            ; cl = bit index
+    mov bl, 1
+    shl bl, cl            ; bl = 1 << bit_index
+    or al, bl
+    mov [esi + ebx], al
+
+.skip:
+    add esp, 4            ; remove val local var
+    dec ecx
+    jmp .loop_read
+
+.done:
+    ; test: print bitset[20]
+    movzx eax, byte [esi + 20]
+    push eax
+    push test_fmt
+    call printf
+    add esp, 8
+
+    leave
+    ret
+TESTARE 
+ ; Apelăm read_set(bitset, 32, 2)
+    push dword 2              ; m = 2 (număr de valori citite)
+    push dword [bitset_size] ; n = 32 (dimensiunea bitset-ului)
+    push bitset              ; adresa bitset-ului
+    call read_set
+    add esp, 12              ; curățăm parametrii
+
+    ; Afișăm valoarea bitset[20]
+    movzx eax, byte [bitset + 20]
+    push eax
+    push fmt_result
+    call printf
+    add esp, 8
+
+    mov eax, 0
+
+c) [5p] Implementați funcția void print_set(char *bitset, int n) care afișează elementele mulțimii reținute
+în bitsetul bitset de dimensiune n octeți. Pentru testare, folosiți bitsetul populat la punctele anterioare.
+
+print_set:
+    push ebp
+    mov ebp, esp
+
+    ; edi = pointer la bitset
+    mov edi, [ebp + 8]
+    ; ecx = dimensiunea bitsetului (n)
+    mov ecx, [ebp + 12]
+
+    xor ebx, ebx              ; byte_index = 0
+
+.loop_bytes:
+    cmp ebx, ecx              ; dacă am terminat byte-ii, ieșim
+    jge .done
+
+    mov al, [edi + ebx]       ; al = byte curent
+
+    xor edx, edx              ; bit_index = 0
+
+.loop_bits:
+    cmp edx, 8
+    jge .next_byte
+
+    mov ah, al
+    shr ah, dl                ; mutăm bitul pe poziția 0
+    and ah, 1                 ; verificăm dacă bitul e 1
+    cmp ah, 0
+    je .skip_bit
+
+    ; bit setat → afișăm valoarea
+    ; val = byte_index * 8 + bit_index
+    mov eax, ebx
+    shl eax, 3                ; eax = byte_index * 8
+    add eax, edx              ; eax += bit_index
+
+    push eax
+    push fmtVal
+    call PRINTF32
+    add esp, 8
+
+.skip_bit:
+    inc edx
+    jmp .loop_bits
+
+.next_byte:
+    inc ebx
+    jmp .loop_bytes
+
+.done:
+    mov esp, ebp
+    pop ebp
+    ret
+
+TESTARE
+push dword [bitset_size]
+push dword bitset
+call print_set
+add esp, 8
+
+
+
+
+
+d) [5p] Implementați funcția int card_set(char *bitset, int n) care afișează cardinalul mulțimii reținute în
+bitsetul bitset de dimensiune n octeți. Pentru testare, folosiți bitsetul populat la punctele anterioare.
+card_set:
+    push ebp
+    mov ebp, esp
+
+    mov edi, [ebp + 8]      ; char *bitset
+    mov ecx, [ebp + 12]     ; int n (număr octeți)
+
+    xor ebx, ebx            ; ebx = byte_index = 0
+    xor eax, eax            ; eax = cardinal (numar biti setati)
+
+.loop_bytes:
+    cmp ebx, ecx
+    jge .done
+
+    mov dl, [edi + ebx]     ; dl = octet curent
+    mov esi, 8              ; numar biți de testat în byte
+
+.loop_bits:
+    cmp esi, 0
+    je .next_byte
+
+    test dl, 1              ; test bitul cel mai jos
+    jz .skip_increment
+    inc eax                 ; bit setat, incrementam cardinal
+
+.skip_increment:
+    shr dl, 1               ; mutăm următorul bit pe poziția 0
+    dec esi
+    jmp .loop_bits
+
+.next_byte:
+    inc ebx
+    jmp .loop_bytes
+
+.done:
+    mov esp, ebp
+    pop ebp
+    ret
+
+ ; Apel card_set
+    push dword [bitset_size]
+    push dword bitset
+    call card_set
+    add esp, 8
+
+    ; eax conține cardinalul, îl afișăm
+    push eax
+    push fmtCard
+    call PRINTF32
+    add esp, 8
