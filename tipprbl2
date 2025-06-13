@@ -915,3 +915,39 @@ card_set:
     push fmtCard
     call PRINTF32
     add esp, 8
+
+
+
+a) [5p] Adăugați o regulă în Makefile pentru a schimba entry-point-ul executabilului rezultat din fișierul obiect
+entry.o din funcția main în funcția entry. Ambele funcții sunt definite deja în entry.o.
+CC = gcc
+CFLAGS = -m32 -fno-stack-protector -fno-PIC
+LDFLAGS = -m32 -no-pie -g
+BINARIES = entry
+
+all: $(BINARIES)
+
+# TODO a: Add a rule to change the entry point of entry.o
+# to the `entry` function instead of `main`.
+
+clean:
+	rm -f $(BINARIES)
+	rm -f *~ 
+
+
+TRANSFORMAT MAKEFILE
+
+CC = gcc
+CFLAGS = -m32 -fno-stack-protector -fno-PIC
+LDFLAGS = -m32 -no-pie -g
+BINARIES = entry
+
+all: $(BINARIES)
+
+entry: entry.o
+	$(CC) $(LDFLAGS) -e entry -o $@ $^
+
+clean:
+	rm -f $(BINARIES)
+	rm -f *~
+
